@@ -1,14 +1,23 @@
 [project]
 name = "wxmp"
 version = "0.1.0"
-description = "Add your description here"
+description = "微信公众号 API 等相关工具"
 readme = "README.md"
 authors = [
     { name = "morning-start", email = "morning-start@foxmail.com" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "fake-useragent>=2.2.0",
+    "pydantic>=2.12.5",
+    "requests>=2.32.5",
+    "urllib3>=2.6.3",
+]
 
 [build-system]
 requires = ["uv_build>=0.10.4,<0.11.0"]
 build-backend = "uv_build"
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true

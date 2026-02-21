@@ -22,6 +22,10 @@ class TimeRange(BaseModel):
         """将 datetime 对象序列化为 YYYY-MM-DD 格式字符串"""
         return dt.strftime("%Y-%m-%d")
 
+    # 包含 begin 和 end 时间
+    def __contains__(self, dt: datetime) -> bool:
+        return self.begin <= dt <= self.end
+
 
 T = TypeVar("T", bound=TimeRange)
 
@@ -135,4 +139,4 @@ class TimeManager(Generic[T]):
         Returns:
             是否在范围中
         """
-        return self.meta.begin <= t <= self.meta.end
+        return t in self.meta

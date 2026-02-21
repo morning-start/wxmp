@@ -11,6 +11,7 @@ from tqdm import tqdm
 
 from wxmp.api import ArticleListItem, SearchBizError, TokenError, WxMPAPI
 from wxmp.tools import load_json, sanitize_filename, save_article_content, save_json
+from wxmp.tools.time_manager import TimeManager
 
 
 class ArticleDownloadTask(NamedTuple):
@@ -218,11 +219,12 @@ class TimeRangeSpider(WxMPAPI):
 
         for nickname, fakeid in bizs.items():
             safe_nickname = sanitize_filename(nickname)
-            save_path = save_dir / f"{safe_nickname}.csv"
-            meta_path = save_dir / f"{safe_nickname}.json"
-            remaining_range, new_meta_info = self.get_remaining_time_range(
-                meta_path, time_range
-            )
+            if TimeManager.check_file_exist(safe_nickname, save_dir):
+                tm = TimeManager.load_file(safe_nickname, save_dir)
+            else:
+                tm = TimeManager.new()
+
+            remaining_range = tm.match_remaining_time_range(time_range)
             if remaining_range is None:
                 logger.info(f"公众号 {nickname} 已经获取到所有文章，跳过")
                 continue
@@ -233,25 +235,9 @@ class TimeRangeSpider(WxMPAPI):
 
             df_articles = pd.DataFrame([article.model_dump() for article in articles])
 
-            # 如果文件存在，则合并
-            if save_path.exists():
-                df_existing = pd.read_csv(save_path)
-                df_articles = pd.concat([df_articles, df_existing], ignore_index=True)
+            tm.append_data(df_articles)
+            tm.save_file(safe_nickname, save_dir)
 
-            # 去重
-            df_articles = df_articles.drop_duplicates(
-                subset=["title"], keep="first", ignore_index=True
-            )
-            # 按照时间排序
-            df_articles["create_time"] = pd.to_datetime(df_articles["create_time"])
-            df_articles = df_articles.sort_values(
-                by="create_time", ascending=False, ignore_index=True
-            )
-
-            # 保存到缓存文件
-            df_articles.to_csv(save_path, index=False, encoding="utf-8-sig")
-            # 保存元数据
-            save_json(new_meta_info.model_dump(), meta_path)
         # 合并bizs中对应的csv文件，并且 nickname 列为对应公众号名称
         csv_files: list[Path] = []
         for nickname in bizs.keys():
@@ -390,40 +376,3 @@ class TimeRangeSpider(WxMPAPI):
             f"文章下载完成: 成功 {success_count} 篇, 失败 {fail_count} 篇, "
             f"跳过 {skip_count} 篇, 总计 {len(tasks)} 篇"
         )
-
-
-def match_remaining_time_range(
-    meta_time: TimeRange, need_time: TimeRange
-) -> tuple[TimeRange, TimeRange]:
-    """
-    获取剩余的时间范围
-
-    Args:
-        meta_time: 元数据时间范围
-        need_time: 需要获取的时间范围
-
-    Returns:
-        remaining_range: 剩余的时间范围
-        meta_time: 更新后的元数据时间范围
-    """
-
-    # 情况1: 完全没有重叠
-    # 情况2: 缓存在请求范围内，需要扩展（请求的开始日期在缓存内，但结束日期超出）
-    # 情况3: 缓存在请求范围内，需要扩展（请求的结束日期在缓存内，但开始日期超出）
-    # 情况4: 完全在范围内（无需获取）
-
-    if meta_time.end < need_time.begin or need_time.end < meta_time.begin:
-        remaining_range = TimeRange(begin=need_time.begin, end=need_time.end)
-        meta_time.begin = need_time.begin
-        meta_time.end = need_time.end
-        return remaining_range, meta_time
-    elif meta_time.begin < need_time.begin <= meta_time.end < need_time.end:
-        remaining_range = TimeRange(begin=meta_time.end, end=need_time.end)
-        meta_time.end = need_time.end
-        return remaining_range, meta_time
-    elif need_time.begin < meta_time.begin <= need_time.end < meta_time.end:
-        remaining_range = TimeRange(begin=need_time.begin, end=meta_time.begin)
-        meta_time.begin = need_time.begin
-        return remaining_range, meta_time
-    else:
-        return None, meta_time

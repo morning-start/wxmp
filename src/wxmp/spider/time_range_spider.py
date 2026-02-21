@@ -224,10 +224,6 @@ class TimeRangeSpider(WxMPAPI):
                 meta_path, time_range
             )
             if remaining_range is None:
-                # debug剩余时间，检查是否计算正确
-                logger.debug(
-                    f"公众号 {nickname} 剩余时间范围 {remaining_range}，元数据 {new_meta_info}"
-                )
                 logger.info(f"公众号 {nickname} 已经获取到所有文章，跳过")
                 continue
             articles = self.search_articles(fakeid, time_range=remaining_range)

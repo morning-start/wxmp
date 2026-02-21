@@ -33,5 +33,5 @@ class AccountInfo(BaseModel):
 class SearchBizResponse(BaseResponse):
     """搜索公众号API响应"""
 
-    list: List[AccountInfo] = Field(description="公众号列表")
+    arr: List[AccountInfo] = Field(description="公众号列表")
     total: int = Field(description="搜索结果总数")

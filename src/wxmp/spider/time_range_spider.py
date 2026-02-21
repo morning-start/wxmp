@@ -8,6 +8,7 @@ import pandas as pd
 from loguru import logger
 from pydantic import BaseModel, field_serializer
 from tqdm import tqdm
+
 from wxmp.api import ArticleListItem, SearchBizError, TokenError, WxMPAPI
 from wxmp.tools import load_json, sanitize_filename, save_article_content, save_json
 
@@ -94,9 +95,9 @@ class TimeRangeSpider(WxMPAPI):
             for name in need_names:
                 try:
                     result = self.fetch_fakeid(name)
-                    if result.list:
-                        nickname = result.list[0].nickname
-                        fakeid = result.list[0].fakeid
+                    if result.arr:
+                        nickname = result.arr[0].nickname
+                        fakeid = result.arr[0].fakeid
                         bizs[nickname] = fakeid
                         logger.info(f"成功获取公众号: {nickname} -> {fakeid}")
                     else:

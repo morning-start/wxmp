@@ -1,6 +1,8 @@
 # 微信公众号 API 工具
 
-微信公众平台（微信公众号）API 相关工具，提供公众号搜索、文章列表获取等功能。
+微信公众平台（微信公众号）API 相关工具，提供公众号搜索、文章列表获取、文章内容下载等功能。
+
+**项目地址**: https://github.com/morning-start/wxmp
 
 ## 项目简介
 
@@ -10,66 +12,9 @@
 - 搜索公众号（根据关键词查找公众号信息）
 - 获取指定公众号的文章列表
 - 验证文章链接有效性
-
-## 项目结构
-
-```
-wxmp/
-├── src/wxmp/                 # 项目源码目录
-│   ├── api/                  # API 模块
-│   │   ├── __init__.py       # API 导出定义
-│   │   ├── common.py         # 公共模型和异常定义
-│   │   ├── index.py          # WxMPAPI 主类
-│   │   ├── token.py          # Token 获取相关
-│   │   ├── search_biz.py     # 公众号搜索 API
-│   │   └── list_ex.py        # 文章列表 API
-│   └── __init__.py           # 项目入口
-├── pyproject.toml            # 项目配置
-└── README.md                 # 项目文档
-```
-
-## 功能模块
-
-### 1. common.py - 公共模块
-
-定义基础模型和异常类：
-
-- `WxMPAPIError` - 基础异常类
-- `BaseRequest` - API 基础请求参数（token、begin、count、lang 等）
-- `BaseResp` - 基础响应对象（ret、err_msg）
-- `BaseResponse` - 带 base_resp 嵌套的响应模型
-- `ErrorDetail` - 错误详情模型
-- `ErrorResponse` - 错误响应模型
-
-### 2. index.py - WxMPAPI 主类
-
-核心 API 封装类，提供以下方法：
-
-| 方法 | 说明 |
-|------|------|
-| `__init__(cookies)` | 初始化，传入微信登录后的 cookies |
-| `search_fakeid(query, begin, count)` | 搜索公众号 |
-| `search_article_list(fakeid, begin, count)` | 获取公众号文章列表 |
-| `is_valid_article_link(link)` | 静态方法，判断文章链接是否有效 |
-
-### 3. token.py - Token 模块
-
-- `TokenError` - Token 获取异常
-- `TokenResponse` - Token 响应模型
-
-### 4. search_biz.py - 公众号搜索
-
-- `SearchBizError` - 搜索异常
-- `SearchBizRequest` - 搜索请求参数
-- `SearchBizResponse` - 搜索响应结果
-- `AccountInfo` - 公众号信息模型（fakeid、nickname、alias、头像、签名等）
-
-### 5. list_ex.py - 文章列表
-
-- `ListExError` - 获取文章列表异常
-- `ListExRequest` - 文章列表请求参数
-- `ListExResponse` - 文章列表响应
-- `ArticleListItem` - 文章信息模型（标题、链接、封面、发布时间等）
+- 下载文章内容并转换为 Markdown 格式
+- 支持时间范围缓存和增量更新
+- 支持并发下载
 
 ## 安装
 
@@ -80,24 +25,14 @@ pip install wxmp
 或从源码安装：
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/morning-start/wxmp.git
 cd wxmp
 pip install -e .
 ```
 
-## 依赖
-
-- Python >= 3.10
-- fake-useragent >= 2.2.0
-- pydantic >= 2.12.5
-- urllib3 >= 2.6.3
-- requests
-
 ## 快速开始
 
 ### 1. 初始化 API
-
-首先需要获取微信公众平台的登录 cookies（在浏览器中登录 mp.weixin.qq.com 后获取）：
 
 ```python
 from wxmp import WxMPAPI
@@ -105,7 +40,6 @@ from wxmp import WxMPAPI
 cookies = {
     "wxuin": "your_wxuin",
     "pass_ticket": "your_pass_ticket",
-    # ... 其他 cookies
 }
 
 api = WxMPAPI(cookies)
@@ -114,93 +48,41 @@ api = WxMPAPI(cookies)
 ### 2. 搜索公众号
 
 ```python
-from wxmp import WxMPAPI
-
-# 搜索公众号
 response = api.search_fakeid("Python")
-print(f"找到 {response.total} 个结果")
-
 for account in response.list:
     print(f"名称: {account.nickname}")
-    print(f"FakeID: {account.fakeid}")
-    print(f"头像: {account.round_head_img}")
-    print(f"签名: {account.signature}")
 ```
 
-### 3. 获取文章列表
+### 3. 使用时间范围爬虫（推荐）
 
 ```python
-# 获取公众号文章列表
-response = api.search_article_list(fakeid="公众号的fakeid")
+from wxmp.spider import TimeRangeSpider
+from datetime import datetime
 
-print(f"共有 {response.app_msg_cnt} 篇文章")
+spider = TimeRangeSpider.from_cookies_file("cookies.json")
+bizs = spider.load_or_search_bizs(["Python编程"])
 
-for article in response.app_msg_list:
-    print(f"标题: {article.title}")
-    print(f"链接: {article.link}")
-    print(f"创建时间: {article.create_time}")
-    print(f"封面: {article.cover}")
+time_range = TimeRange(
+    begin=datetime(2024, 1, 1),
+    end=datetime(2024, 12, 31)
+)
+
+df = spider.search_articles_content(bizs, time_range)
+spider.save_all_article_content(df, save_dir="temp/article_content/")
 ```
 
-### 4. 验证文章链接
+## 文档
 
-```python
-# 判断文章链接是否有效
-is_valid = WxMPAPI.is_valid_article_link("https://mp.weixin.qq.com/s/xxx")
-print(f"链接有效: {is_valid}")
-```
+详细文档请查看 [Wiki](./wiki/README.md)：
 
-## 数据模型
-
-### AccountInfo - 公众号信息
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| fakeid | str | 公众号 ID |
-| nickname | str | 公众号名称 |
-| alias | str | 公众号微信号 |
-| round_head_img | str | 公众号头像 URL |
-| service_type | int | 服务类型 |
-| signature | str | 公众号签名 |
-| verify_status | int | 验证状态 |
-
-### ArticleListItem - 文章信息
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| aid | str | 文章 ID（格式：{appmsgid}_{idx}） |
-| appmsgid | int | 文章消息 ID |
-| cover | str | 封面图 URL |
-| create_time | str | 创建时间（格式化字符串） |
-| digest | str | 文章摘要 |
-| link | str | 文章链接 |
-| title | str | 文章标题 |
-| update_time | str | 更新时间（格式化字符串） |
-
-## 异常处理
-
-```python
-from wxmp import WxMPAPI
-from wxmp.api import TokenError, SearchBizError, ListExError
-
-try:
-    api = WxMPAPI(cookies)
-    response = api.search_fakeid("Python")
-except TokenError as e:
-    print(f"Token 获取失败: {e}")
-except SearchBizError as e:
-    print(f"搜索公众号失败: {e}")
-except ListExError as e:
-    print(f"获取文章列表失败: {e}")
-except Exception as e:
-    print(f"未知错误: {e}")
-```
-
-## 注意事项
-
-1. **Cookies 获取**：使用本库前需要先在浏览器中登录微信公众平台，然后从浏览器开发者工具中获取 cookies。
-2. **频率限制**：请合理控制请求频率，避免被微信限制。
-3. **链接有效性**：包含 `tempkey=` 参数的文章链接表示文章已删除或失效。
+- [项目概览](./wiki/项目概览.md) - 项目简介、技术栈、架构概览
+- [架构设计](./wiki/架构设计.md) - 设计原则、模块设计、缓存策略
+- [API 文档](./wiki/API文档.md) - API 层完整文档、数据模型、异常类
+- [使用指南](./wiki/使用指南.md) - 快速开始、使用场景、最佳实践
+- [数据流动与状态管理](./wiki/数据流动与状态管理.md) - 数据流转、状态机、缓存策略
+- [贡献指南](./wiki/贡献指南.md) - 如何贡献代码、开发环境设置
+- [常见问题](./wiki/常见问题.md) - 常见问题和解决方案
+- [更新日志](./wiki/CHANGELOG.md) - 版本历史、变更记录
 
 ## License
 

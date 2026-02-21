@@ -159,12 +159,16 @@ class TimeRangeSpider(WxMPAPI):
             begin += EACH_COUNT
             # 如果articles为空list，说明超出范围，停止获取
             if not articles:
+                logger.warning(f"公众号「{nickname}」获取到的文章为空，停止获取")
                 break
             # 如果时间范围限制存在，超过start_date，停止获取
             if time_range and articles[-1].create_time < time_range.begin.timestamp():
                 break
             # 如果最大数量限制存在，超过最大数量，停止获取
             if max_count and len(all_articles) >= max_count:
+                logger.warning(
+                    f"公众号「{nickname}」获取到的文章数量 {len(all_articles)} 已超过最大数量 {max_count}，停止获取"
+                )
                 break
 
         return all_articles
@@ -188,25 +192,10 @@ class TimeRangeSpider(WxMPAPI):
             return need_time, need_time
         meta_time = TimeRange(**load_json(meta_file))
 
-        # 情况1: 完全没有重叠
-        if meta_time.end < need_time.begin or need_time.end < meta_time.begin:
-            remaining_range = TimeRange(begin=need_time.begin, end=need_time.end)
-            meta_time.begin = need_time.begin
-            meta_time.end = need_time.end
-            return remaining_range, meta_time
-        # 情况2: 缓存在请求范围内，需要扩展（请求的开始日期在缓存内，但结束日期超出）
-        elif meta_time.begin < need_time.begin < meta_time.end < need_time.end:
-            remaining_range = TimeRange(begin=meta_time.end, end=need_time.end)
-            meta_time.end = need_time.end
-            return remaining_range, meta_time
-        # 情况3: 缓存在请求范围内，需要扩展（请求的结束日期在缓存内，但开始日期超出）
-        elif meta_time.begin < need_time.end < meta_time.end:
-            remaining_range = TimeRange(begin=need_time.begin, end=meta_time.begin)
-            meta_time.begin = need_time.begin
-            return remaining_range, meta_time
-        # 情况4: 完全在范围内（无需获取）
-        else:
-            return None, meta_time
+        remaining_range, new_meta_info = match_remaining_time_range(
+            meta_time, need_time
+        )
+        return remaining_range, new_meta_info
 
     def search_articles_content(
         self,
@@ -235,7 +224,11 @@ class TimeRangeSpider(WxMPAPI):
                 meta_path, time_range
             )
             if remaining_range is None:
-                logger.info(f"公众号 {nickname} 已经获取到文章，跳过")
+                # debug剩余时间，检查是否计算正确
+                logger.debug(
+                    f"公众号 {nickname} 剩余时间范围 {remaining_range}，元数据 {new_meta_info}"
+                )
+                logger.info(f"公众号 {nickname} 已经获取到所有文章，跳过")
                 continue
             articles = self.search_articles(fakeid, time_range=remaining_range)
             if not articles:
@@ -401,3 +394,40 @@ class TimeRangeSpider(WxMPAPI):
             f"文章下载完成: 成功 {success_count} 篇, 失败 {fail_count} 篇, "
             f"跳过 {skip_count} 篇, 总计 {len(tasks)} 篇"
         )
+
+
+def match_remaining_time_range(
+    meta_time: TimeRange, need_time: TimeRange
+) -> tuple[TimeRange, TimeRange]:
+    """
+    获取剩余的时间范围
+
+    Args:
+        meta_time: 元数据时间范围
+        need_time: 需要获取的时间范围
+
+    Returns:
+        remaining_range: 剩余的时间范围
+        meta_time: 更新后的元数据时间范围
+    """
+
+    # 情况1: 完全没有重叠
+    # 情况2: 缓存在请求范围内，需要扩展（请求的开始日期在缓存内，但结束日期超出）
+    # 情况3: 缓存在请求范围内，需要扩展（请求的结束日期在缓存内，但开始日期超出）
+    # 情况4: 完全在范围内（无需获取）
+
+    if meta_time.end < need_time.begin or need_time.end < meta_time.begin:
+        remaining_range = TimeRange(begin=need_time.begin, end=need_time.end)
+        meta_time.begin = need_time.begin
+        meta_time.end = need_time.end
+        return remaining_range, meta_time
+    elif meta_time.begin < need_time.begin <= meta_time.end < need_time.end:
+        remaining_range = TimeRange(begin=meta_time.end, end=need_time.end)
+        meta_time.end = need_time.end
+        return remaining_range, meta_time
+    elif need_time.begin < meta_time.begin <= need_time.end < meta_time.end:
+        remaining_range = TimeRange(begin=need_time.begin, end=meta_time.begin)
+        meta_time.begin = need_time.begin
+        return remaining_range, meta_time
+    else:
+        return None, meta_time

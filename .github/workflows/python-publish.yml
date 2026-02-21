@@ -89,7 +89,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.get-version.outputs.tag }}
-          name: Release ${{ needs.get-version.outputs.tag }}
+          name: ${{ needs.get-version.outputs.tag }}
           body: ${{ needs.get-version.outputs.changelog }}
           draft: false
           prerelease: false

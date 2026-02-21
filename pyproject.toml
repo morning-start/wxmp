@@ -1,6 +1,6 @@
 [project]
 name = "wxmp"
-version = "0.1.0"
+version = "1.0.0"
 description = "微信公众号 API 等相关工具"
 readme = "README.md"
 authors = [

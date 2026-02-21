@@ -1,17 +1,15 @@
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from pathlib import Path
 from typing import Literal, NamedTuple
 
 import pandas as pd
 from loguru import logger
-from pydantic import BaseModel, field_serializer
 from tqdm import tqdm
 
 from wxmp.api import ArticleListItem, SearchBizError, TokenError, WxMPAPI
 from wxmp.tools import load_json, sanitize_filename, save_article_content, save_json
-from wxmp.tools.time_manager import TimeManager
+from wxmp.tools.time_manager import TimeManager, TimeRange
 
 
 class ArticleDownloadTask(NamedTuple):
@@ -25,18 +23,6 @@ class ArticleDownloadTask(NamedTuple):
     account_name: str = ""
     digest: str = ""
     min_file_size_kb: int = 3
-
-
-class TimeRange(BaseModel):
-    """文章时间范围，用于缓存管理"""
-
-    begin: datetime
-    end: datetime = datetime.today()
-
-    @field_serializer("begin", "end")
-    def serialize_datetime(self, dt: datetime) -> str:
-        """将 datetime 对象序列化为 YYYY-MM-DD 格式字符串"""
-        return dt.strftime("%Y-%m-%d")
 
 
 class TimeRangeSpider(WxMPAPI):

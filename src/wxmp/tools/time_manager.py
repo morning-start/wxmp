@@ -124,3 +124,15 @@ class TimeManager(Generic[T]):
         df[time_col] = pd.to_datetime(df[time_col])
         df = df.sort_values(by=time_col, ascending=False, ignore_index=True)
         self.data = pd.concat([self.data, df], ignore_index=True)
+
+    def in_time_range(self, t: datetime) -> bool:
+        """
+        判断时间是否在范围中
+
+        Args:
+            time: 时间
+
+        Returns:
+            是否在范围中
+        """
+        return self.meta.begin <= t <= self.meta.end

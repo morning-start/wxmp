@@ -8,7 +8,6 @@ import pandas as pd
 from loguru import logger
 from pydantic import BaseModel, field_serializer
 from tqdm import tqdm
-
 from wxmp.api import ArticleListItem, SearchBizError, TokenError, WxMPAPI
 from wxmp.tools import load_json, sanitize_filename, save_article_content, save_json
 
@@ -170,8 +169,9 @@ class TimeRangeSpider(WxMPAPI):
         return all_articles
 
     # 剩余的时间范围 meta_file,start_time,end_time
-    def _get_remaining_time_range(
-        self, meta_file: Path, time_range: TimeRange
+    @staticmethod
+    def get_remaining_time_range(
+        meta_file: Path, need_time: TimeRange
     ) -> tuple[TimeRange, TimeRange]:
         """
         获取剩余的时间范围
@@ -184,28 +184,28 @@ class TimeRangeSpider(WxMPAPI):
             剩余的时间范围（开始日期，结束日期）
         """
         if not meta_file.exists():
-            return time_range, time_range
-        meta_info = TimeRange(**load_json(meta_file))
+            return need_time, need_time
+        meta_time = TimeRange(**load_json(meta_file))
 
         # 情况1: 完全没有重叠
-        if meta_info.end < time_range.begin or time_range.end < meta_info.begin:
-            remaining_range = TimeRange(begin=time_range.begin, end=time_range.end)
-            meta_info.begin = time_range.begin
-            meta_info.end = time_range.end
-            return remaining_range, meta_info
+        if meta_time.end < need_time.begin or need_time.end < meta_time.begin:
+            remaining_range = TimeRange(begin=need_time.begin, end=need_time.end)
+            meta_time.begin = need_time.begin
+            meta_time.end = need_time.end
+            return remaining_range, meta_time
         # 情况2: 缓存在请求范围内，需要扩展（请求的开始日期在缓存内，但结束日期超出）
-        elif meta_info.begin < time_range.begin < meta_info.end < time_range.end:
-            remaining_range = TimeRange(begin=meta_info.end, end=time_range.end)
-            meta_info.end = time_range.end
-            return remaining_range, meta_info
+        elif meta_time.begin < need_time.begin < meta_time.end < need_time.end:
+            remaining_range = TimeRange(begin=meta_time.end, end=need_time.end)
+            meta_time.end = need_time.end
+            return remaining_range, meta_time
         # 情况3: 缓存在请求范围内，需要扩展（请求的结束日期在缓存内，但开始日期超出）
-        elif meta_info.begin < time_range.end < meta_info.end:
-            remaining_range = TimeRange(begin=time_range.begin, end=meta_info.begin)
-            meta_info.begin = time_range.begin
-            return remaining_range, meta_info
+        elif meta_time.begin < need_time.end < meta_time.end:
+            remaining_range = TimeRange(begin=need_time.begin, end=meta_time.begin)
+            meta_time.begin = need_time.begin
+            return remaining_range, meta_time
         # 情况4: 完全在范围内（无需获取）
         else:
-            return None, meta_info
+            return None, meta_time
 
     def search_articles_content(
         self,
@@ -230,7 +230,7 @@ class TimeRangeSpider(WxMPAPI):
             safe_nickname = sanitize_filename(nickname)
             save_path = save_dir / f"{safe_nickname}.csv"
             meta_path = save_dir / f"{safe_nickname}.json"
-            remaining_range, new_meta_info = self._get_remaining_time_range(
+            remaining_range, new_meta_info = self.get_remaining_time_range(
                 meta_path, time_range
             )
             if remaining_range is None:

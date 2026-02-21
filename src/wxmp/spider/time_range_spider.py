@@ -120,6 +120,7 @@ class TimeRangeSpider(WxMPAPI):
     def search_articles(
         self,
         fakeid: str,
+        nickname: str,
         max_count: int | None = None,
         time_range: TimeRange | None = None,
     ) -> list[ArticleListItem]:
@@ -127,8 +128,8 @@ class TimeRangeSpider(WxMPAPI):
         加载或获取文章链接列表（带缓存优化）
 
         Args:
-            nickname: 公众号名称
             fakeid: 公众号fakeid
+            nickname: 公众号名称
             max_count: 最大获取数量限制
             time_range: 时间范围限制
 
@@ -146,7 +147,7 @@ class TimeRangeSpider(WxMPAPI):
             begin += EACH_COUNT
             # 如果articles为空list，说明超出范围，停止获取
             if not articles:
-                logger.warning(f"公众号「{nickname}」获取到的文章为空，停止获取")
+                logger.info(f"公众号「{nickname}」获取到的文章为空，停止获取")
                 break
             # 如果时间范围限制存在，超过start_date，停止获取
             if time_range and articles[-1].create_time < time_range.begin.timestamp():
@@ -214,7 +215,9 @@ class TimeRangeSpider(WxMPAPI):
             if remaining_range is None:
                 logger.info(f"公众号 {nickname} 已经获取到所有文章，跳过")
                 continue
-            articles = self.search_articles(fakeid, time_range=remaining_range)
+            articles = self.search_articles(
+                fakeid, nickname, time_range=remaining_range
+            )
             if not articles:
                 logger.warning(f"公众号 {nickname} 没有获取到有效文章")
                 continue

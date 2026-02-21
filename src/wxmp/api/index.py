@@ -1,8 +1,10 @@
+import asyncio
 import re
 import warnings
 
 import requests
 from fake_useragent import UserAgent
+from tqdm.asyncio import tqdm as tqdm_asyncio
 from urllib3.exceptions import InsecureRequestWarning
 
 from .list_ex import ListExError, ListExRequest, ListExResponse
@@ -24,7 +26,7 @@ class WxMPAPI:
         self.session = requests.Session()
         self.token = None
 
-    def _get_token(self) -> str:
+    def _fetch_token(self) -> str:
         url = self.domain
         try:
             res = self.session.get(
@@ -41,7 +43,7 @@ class WxMPAPI:
         except Exception as e:
             raise TokenError(f"获取token时发生错误: {str(e)}")
 
-    def search_fakeid(
+    def fetch_fakeid(
         self, query: str, begin: int = 0, count: int = 5
     ) -> SearchBizResponse:
         url = self.domain + "/cgi-bin/searchbiz"
@@ -67,7 +69,7 @@ class WxMPAPI:
         except Exception as e:
             raise SearchBizError(f"搜索公众号时发生错误: {str(e)}")
 
-    def search_article_list(
+    def fetch_article_list(
         self, fakeid: str, begin: int = 0, count: int = 5
     ) -> ListExResponse:
         url = self.domain + "/cgi-bin/appmsg"
@@ -104,3 +106,30 @@ class WxMPAPI:
         if "tempkey=" in link:
             return False
         return True
+
+    @staticmethod
+    def fetch_article_content(link: str, timeout: int = 10) -> str:
+        headers = {"User-Agent": UserAgent().random}
+        response = requests.get(link, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        return response.text
+
+    @staticmethod
+    async def fetch_multi_article_content(
+        links: list[str], timeout: int = 10
+    ) -> list[str]:
+        """
+        搜索多篇文章内容, 并返回同顺序内容列表
+        """
+
+        async def fetch_single(link: str) -> str:
+            headers = {"User-Agent": UserAgent().random}
+            response = requests.get(link, headers=headers, timeout=timeout)
+            response.raise_for_status()
+            return response.text
+
+        tasks = [asyncio.to_thread(fetch_single, link) for link in links]
+
+        results = await tqdm_asyncio.gather(*tasks, desc="获取文章内容", unit="篇")
+
+        return results

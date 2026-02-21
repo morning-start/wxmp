@@ -17,6 +17,26 @@
 
 ---
 
+## [1.1.0] - 2026-02-21
+
+### 新增
+- **TimeManager 泛型支持**
+  - 将 `TimeManager` 改为泛型类 `TimeManager[T]`
+  - 支持自定义 `TimeRange` 子类
+  - `new()` 和 `load_file()` 方法支持 `meta_class` 参数
+  - 完整的类型提示和类型安全支持
+
+### 变更
+- `TimeManager` 类现在继承自 `Generic[T]`
+- `match_remaining_time_range()` 方法返回类型改为 `T | None`
+- `fliter_data()` 方法的 `time_range` 参数类型改为 `T`
+- 动态类型创建使用 `type(need_time)` 以支持子类
+
+### 修复
+- 修复 `append_data()` 方法中的变量名错误（`df_articles` → `df`）
+
+---
+
 ## [1.0.2] - 2026-02-21
 
 ### 修复

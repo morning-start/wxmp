@@ -24,3 +24,8 @@ build-backend = "uv_build"
 [[tool.uv.index]]
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 default = true
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.2.0",
+]

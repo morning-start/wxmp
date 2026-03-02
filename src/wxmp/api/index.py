@@ -4,10 +4,17 @@ import warnings
 
 import requests
 from fake_useragent import UserAgent
+from pydantic import ValidationError
 from tqdm.asyncio import tqdm as tqdm_asyncio
 from urllib3.exceptions import InsecureRequestWarning
 
-from .list_ex import ListExError, ListExRequest, ListExResponse
+from .list_ex import (
+    ListExError,
+    ListExPublishRequest,
+    ListExPublishResponse,
+    ListExRequest,
+    ListExResponse,
+)
 from .search_biz import SearchBizError, SearchBizRequest, SearchBizResponse
 from .token import TokenError
 
@@ -26,7 +33,7 @@ class WxMPAPI:
         self.session = requests.Session()
         self.token = None
 
-    def _fetch_token(self) -> str:
+    def _fetch_token(self):
         url = self.domain
         try:
             res = self.session.get(
@@ -36,7 +43,8 @@ class WxMPAPI:
 
             token = re.findall(r".*?token=(\d+)", res.url)
             if token:
-                return token[0]
+                self.token = token[0]
+                return self.token
             raise TokenError("从重定向URL中提取token失败")
         except requests.HTTPError as e:
             raise TokenError(f"HTTP请求失败: {e.response.status_code}")
@@ -70,10 +78,16 @@ class WxMPAPI:
             raise SearchBizError(f"搜索公众号时发生错误: {str(e)}")
 
     def fetch_article_list(
-        self, fakeid: str, begin: int = 0, count: int = 5
+        self,
+        fakeid: str,
+        begin: int = 0,
+        count: int = 5,
+        is_publish: bool = False,
     ) -> ListExResponse:
-        url = self.domain + "/cgi-bin/appmsg"
-        params = ListExRequest(
+        url = self.domain + f"/cgi-bin/{'appmsgpublish' if is_publish else 'appmsg'}"
+        REQ = ListExPublishRequest if is_publish else ListExRequest
+        RESP = ListExPublishResponse if is_publish else ListExResponse
+        params = REQ(
             begin=begin,
             count=count,
             fakeid=fakeid,
@@ -88,9 +102,13 @@ class WxMPAPI:
                 verify=False,
             )
             res.raise_for_status()
-            return ListExResponse(**res.json())
+            return RESP(**res.json())
         except requests.HTTPError as e:
             raise ListExError(f"HTTP请求失败: {e.response.status_code}")
+        except ValidationError as e:
+            raise ListExError(f"解析JSON响应时发生错误: {str(e)}")
+        except ValueError as e:
+            raise ListExError(f"解析JSON响应时发生错误: {str(e)}")
         except Exception as e:
             raise ListExError(f"获取文章列表时发生错误: {str(e)}")
 

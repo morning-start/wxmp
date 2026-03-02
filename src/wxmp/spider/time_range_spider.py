@@ -29,7 +29,7 @@ class TimeRangeSpider(WxMPAPI):
     def __init__(self, cookies: dict[str, str]) -> None:
         super().__init__(cookies)
         try:
-            self.token = self._fetch_token()
+            self._fetch_token()
             logger.info(f"获取token成功: {self.token}")
         except TokenError as e:
             logger.error(f"❌ 获取token失败: {str(e)}")
@@ -96,7 +96,11 @@ class TimeRangeSpider(WxMPAPI):
         return bizs
 
     def search_article_list(
-        self, fakeid: str, begin: int, count: int
+        self,
+        fakeid: str,
+        begin: int,
+        count: int,
+        is_publish: bool = False,
     ) -> list[ArticleListItem]:
         """
         获取文章列表
@@ -105,11 +109,12 @@ class TimeRangeSpider(WxMPAPI):
             fakeid: 公众号fakeid
             begin: 列表起始位置
             count: 返回数量
+            use_publish: 是否获取已发布文章，默认是 False
 
         Returns:
             过滤后的文章列表
         """
-        articles = self.fetch_article_list(fakeid, begin, count)
+        articles = self.fetch_article_list(fakeid, begin, count, is_publish)
         valid_articles = [
             article
             for article in articles.app_msg_list
@@ -121,6 +126,7 @@ class TimeRangeSpider(WxMPAPI):
         self,
         fakeid: str,
         nickname: str,
+        is_publish: bool = False,
         max_count: int | None = None,
         time_range: TimeRange | None = None,
     ) -> list[ArticleListItem]:
@@ -130,6 +136,7 @@ class TimeRangeSpider(WxMPAPI):
         Args:
             fakeid: 公众号fakeid
             nickname: 公众号名称
+            is_publish: 是否获取已发布文章，默认是 False
             max_count: 最大获取数量限制
             time_range: 时间范围限制
 
@@ -142,7 +149,7 @@ class TimeRangeSpider(WxMPAPI):
         begin = 0
         while True:
             # 获取到的文章都是倒序排列，就是由近到远的顺序，越在后面的越早
-            articles = self.search_article_list(fakeid, begin, EACH_COUNT)
+            articles = self.search_article_list(fakeid, begin, EACH_COUNT, is_publish)
             all_articles += articles
             begin += EACH_COUNT
             # 如果articles为空list，说明超出范围，停止获取
@@ -189,6 +196,7 @@ class TimeRangeSpider(WxMPAPI):
         self,
         bizs: dict[str, str],
         time_range: TimeRange,
+        is_publish: bool = False,
         save_dir: Path = Path("temp/articles_info/"),
     ) -> pd.DataFrame:
         """
@@ -197,6 +205,7 @@ class TimeRangeSpider(WxMPAPI):
         Args:
             bizs: 公众号名称到fakeid的映射
             time_range: 时间范围
+            is_publish: 是否获取已发布文章，默认是 False
 
         Returns:
             文章内容DataFrame
@@ -216,7 +225,7 @@ class TimeRangeSpider(WxMPAPI):
                 logger.info(f"公众号 {nickname} 已经获取到所有文章，跳过")
                 continue
             articles = self.search_articles(
-                fakeid, nickname, time_range=remaining_range
+                fakeid, nickname, time_range=remaining_range, is_publish=is_publish
             )
             if not articles:
                 logger.warning(f"公众号 {nickname} 没有获取到有效文章")

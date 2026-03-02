@@ -302,6 +302,7 @@ class TimeRangeSpider(WxMPAPI):
         df: pd.DataFrame,
         save_dir: Path = Path("temp/article_content/"),
         max_workers: int = 5,
+        exclude_titles: list[str] = None,
         time_range: TimeRange = None,
         save_file: Literal["md", "html"] = "md",
         min_file_size_kb: int = 3,
@@ -313,6 +314,7 @@ class TimeRangeSpider(WxMPAPI):
             df: 包含文章信息的DataFrame
             save_dir: 保存目录
             max_workers: 最大并发数
+            exclude_titles: 排除的文章标题列表包含字段，默认 None
             time_range: 时间范围
             save_file: 保存格式（md 或 html）
             min_file_size_kb: 最小文件大小（KB）
@@ -327,8 +329,17 @@ class TimeRangeSpider(WxMPAPI):
             ]
 
         tasks = []
+        skip_count = 0
+        success_count = 0
+        fail_count = 0
+
         for _, row in df.iterrows():
             safe_nickname = sanitize_filename(row["nickname"])
+            if exclude_titles and any(
+                title in row["title"] for title in exclude_titles
+            ):
+                skip_count += 1
+                continue
             task = ArticleDownloadTask(
                 url=row["link"],
                 title=row["title"],
@@ -342,10 +353,6 @@ class TimeRangeSpider(WxMPAPI):
                 min_file_size_kb=min_file_size_kb,
             )
             tasks.append((task, row["link"], row["title"]))
-
-        success_count = 0
-        fail_count = 0
-        skip_count = 0
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {

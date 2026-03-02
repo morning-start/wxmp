@@ -213,7 +213,7 @@ class TimeRangeSpider(WxMPAPI):
         # 创建保存目录
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        for nickname, fakeid in bizs.items():
+        for nickname, fakeid in tqdm(bizs.items(), desc="获取公众号列表"):
             safe_nickname = sanitize_filename(nickname)
             if TimeManager.check_file_exist(safe_nickname, save_dir):
                 tm = TimeManager.load_file(safe_nickname, save_dir)

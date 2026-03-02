@@ -1,5 +1,6 @@
 import asyncio
 import re
+import time
 import warnings
 
 import requests
@@ -94,6 +95,8 @@ class WxMPAPI:
             token=self.token,
         )
         try:
+            # 请求前延迟 0.05 秒
+            time.sleep(0.05)
             res = self.session.get(
                 url=url,
                 params=params.model_dump(),

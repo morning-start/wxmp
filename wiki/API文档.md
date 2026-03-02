@@ -1,3 +1,9 @@
+<!--
+版本: 1.5.0
+更新日期: 2026-03-03
+状态: Published
+-->
+
 # API 文档
 
 ## API 层概述
@@ -80,7 +86,7 @@ def fetch_fakeid(
 response = api.fetch_fakeid("Python")
 print(f"找到 {response.total} 个结果")
 
-for account in response.list:
+for account in response.arr:
     print(f"名称: {account.nickname}")
     print(f"FakeID: {account.fakeid}")
 ```
@@ -96,7 +102,8 @@ def fetch_article_list(
     self,
     fakeid: str,
     begin: int = 0,
-    count: int = 5
+    count: int = 5,
+    is_publish: bool = False
 ) -> ListExResponse
 ```
 
@@ -104,6 +111,7 @@ def fetch_article_list(
 - `fakeid`: 公众号 fakeid
 - `begin`: 起始位置（默认 0）
 - `count`: 返回数量（默认 5）
+- `is_publish`: 是否获取已发布文章列表（默认 False）
 
 **返回值**:
 - `ListExResponse`: 文章列表响应对象
@@ -228,12 +236,25 @@ class TokenResponse(BaseModel):
 
 ```python
 class SearchBizRequest(BaseModel):
-    action: str = "search_biz"
+    token: str = ""
     begin: int = 0
     count: int = 5
+    lang: str = "zh_CN"
+    f: str = "json"
+    ajax: int = 1
     query: str = ""
-    token: str = ""
+    action: str = "search_biz"
 ```
+
+**字段说明**:
+- `token`: 授权 token
+- `begin`: 列表起始位置
+- `count`: 返回消息条数
+- `lang`: 语言（默认 zh_CN）
+- `f`: 数据格式（默认 json）
+- `ajax`: 是否为 ajax 请求（默认 1）
+- `query`: 查询字符串
+- `action`: 动作（默认 search_biz）
 
 ---
 
@@ -244,9 +265,14 @@ class SearchBizRequest(BaseModel):
 ```python
 class SearchBizResponse(BaseModel):
     base_resp: BaseResp
-    list: list[AccountInfo]
+    arr: list[AccountInfo]
     total: int
 ```
+
+**字段说明**:
+- `base_resp`: 基础响应对象
+- `arr`: 公众号列表
+- `total`: 搜索结果总数
 
 ---
 
@@ -261,18 +287,18 @@ class AccountInfo(BaseModel):
     alias: str
     round_head_img: str
     service_type: int
-    verify_flag: int
     signature: str
+    verify_status: int
 ```
 
 **字段说明**:
-- `fakeid`: 公众号 ID
+- `fakeid`: 公众号 fakeid（用于获取文章列表）
 - `nickname`: 公众号名称
 - `alias`: 公众号微信号
 - `round_head_img`: 公众号头像 URL
 - `service_type`: 服务类型
-- `verify_flag`: 验证标志
 - `signature`: 公众号签名
+- `verify_status`: 验证状态
 
 ---
 
@@ -282,13 +308,29 @@ class AccountInfo(BaseModel):
 
 ```python
 class ListExRequest(BaseModel):
+    token: str = ""
     begin: int = 0
     count: int = 5
-    fakeid: str = ""
-    token: str = ""
-    type: int = 0
+    lang: str = "zh_CN"
+    f: str = "json"
+    ajax: int = 1
     query: str = ""
+    action: str = "list_ex"
+    fakeid: str = ""
+    type: str = "9"
 ```
+
+**字段说明**:
+- `token`: 授权 token
+- `begin`: 列表起始位置
+- `count`: 返回消息条数
+- `lang`: 语言（默认 zh_CN）
+- `f`: 数据格式（默认 json）
+- `ajax`: 是否为 ajax 请求（默认 1）
+- `query`: 查询字符串
+- `action`: 动作（默认 list_ex）
+- `fakeid`: 公众号 ID
+- `type`: 类型（默认 9）
 
 ---
 
@@ -320,7 +362,11 @@ class ArticleListItem(BaseModel):
     cover: str
     create_time: int
     digest: str
+    is_pay_subscribe: int
+    item_show_type: int
+    itemidx: int
     link: str
+    tagid: list[str]
     title: str
     update_time: int
 ```
@@ -329,11 +375,15 @@ class ArticleListItem(BaseModel):
 - `aid`: 文章 ID（格式：`{appmsgid}_{idx}`）
 - `appmsgid`: 文章消息 ID
 - `cover`: 封面图 URL
-- `create_time`: 创建时间（时间戳）
+- `create_time`: 创建时间戳
 - `digest`: 文章摘要
+- `is_pay_subscribe`: 是否付费订阅
+- `item_show_type`: 展示类型
+- `itemidx`: 文章索引
 - `link`: 文章链接
+- `tagid`: 标签 ID 列表
 - `title`: 文章标题
-- `update_time`: 更新时间（时间戳）
+- `update_time`: 更新时间戳
 
 ---
 
@@ -357,18 +407,22 @@ class BaseResp(BaseModel):
 
 ### WxMPAPIError
 
-基础异常类。
+微信 MP API 基础异常类。
 
 ```python
 class WxMPAPIError(Exception):
     pass
 ```
 
+**说明**:
+- 所有 API 相关异常的基类
+- 可用于捕获所有 API 层的异常
+
 ---
 
 ### TokenError
 
-Token 获取异常。
+Token 获取失败异常。
 
 ```python
 class TokenError(WxMPAPIError):
@@ -379,12 +433,13 @@ class TokenError(WxMPAPIError):
 - Cookie 无效
 - 网络请求失败
 - Token 提取失败
+- 从重定向 URL 中提取 token 失败
 
 ---
 
 ### SearchBizError
 
-搜索公众号异常。
+搜索公众号失败异常。
 
 ```python
 class SearchBizError(WxMPAPIError):
@@ -400,7 +455,7 @@ class SearchBizError(WxMPAPIError):
 
 ### ListExError
 
-获取文章列表异常。
+获取文章列表失败异常。
 
 ```python
 class ListExError(WxMPAPIError):
@@ -411,6 +466,7 @@ class ListExError(WxMPAPIError):
 - FakeID 无效
 - 网络请求失败
 - 响应解析失败
+- JSON 解析错误
 
 ---
 
@@ -435,9 +491,9 @@ try:
     response = api.fetch_fakeid("Python")
     print(f"找到 {response.total} 个结果")
 
-    if response.list:
-        fakeid = response.list[0].fakeid
-        nickname = response.list[0].nickname
+    if response.arr:
+        fakeid = response.arr[0].fakeid
+        nickname = response.arr[0].nickname
         print(f"选择公众号: {nickname}")
 
         # 3. 获取文章列表

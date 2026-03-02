@@ -25,7 +25,7 @@ class ListExRequest(BaseRequest):
     query: str = Field(default="", description="查询字符串")
     action: str = Field(default="list_ex", description="动作")
     fakeid: str = Field(description="公众号ID")
-    type: str = Field(default=9, description="类型")
+    type: str = Field(default="9", description="类型")
 
 
 class ArticleListItem(BaseModel):

@@ -6,9 +6,9 @@ from typing import Literal, NamedTuple
 import pandas as pd
 from loguru import logger
 from tqdm import tqdm
-
 from wxmp.api import ArticleListItem, SearchBizError, TokenError, WxMPAPI
-from wxmp.tools import load_json, sanitize_filename, save_article_content, save_json
+from wxmp.tools import load_json, sanitize_filename, save_json
+from wxmp.tools.article_downloader import ArticleDownloader, ArticleMetadata
 from wxmp.tools.time_manager import TimeManager, TimeRange
 
 
@@ -22,7 +22,7 @@ class ArticleDownloadTask(NamedTuple):
     date_str: str = ""
     account_name: str = ""
     digest: str = ""
-    min_file_size_kb: int = 3
+    min_file_size: str = "200B"
 
 
 class TimeRangeSpider(WxMPAPI):
@@ -263,39 +263,36 @@ class TimeRangeSpider(WxMPAPI):
         Returns:
             是否成功保存
         """
-        max_retries = task.max_retries
-
-        task.save_dir.mkdir(parents=True, exist_ok=True)
-
         safe_title = sanitize_filename(task.title)
         save_path = task.save_dir / f"{safe_title}.{task.save_file}"
 
-        if save_path.exists():
-            return True
+        metadata = ArticleMetadata(
+            title=task.title,
+            date_str=task.date_str,
+            link=task.url,
+            account_name=task.account_name,
+            digest=task.digest,
+        )
 
-        for attempt in range(max_retries):
-            try:
-                content = WxMPAPI.fetch_article_content(task.url, timeout=task.timeout)
-                result = save_article_content(
-                    content,
-                    save_path,
-                    task.save_file,
-                    title=task.title,
-                    date_str=task.date_str,
-                    link=task.url,
-                    account_name=task.account_name,
-                    digest=task.digest,
-                    min_file_size_kb=task.min_file_size_kb,
-                )
-                return result
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    logger.error(
-                        f"获取文章内容失败（重试{max_retries}次后）: {task.title}, 错误: {e}"
-                    )
-                    return False
-                time.sleep(1)
-        return False
+        downloader = ArticleDownloader(
+            max_retries=task.max_retries,
+            timeout=task.timeout,
+            save_format=task.save_file,
+            min_file_size=task.min_file_size,
+        )
+
+        try:
+            return downloader.download(
+                url=task.url,
+                save_path=save_path,
+                metadata=metadata,
+                fetch_func=WxMPAPI.fetch_article_content,
+            )
+        except Exception as e:
+            logger.error(
+                f"获取文章内容失败（重试{task.max_retries}次后）: {task.title}, 错误: {e}"
+            )
+            return False
 
     @staticmethod
     def save_all_article_content(
@@ -305,7 +302,7 @@ class TimeRangeSpider(WxMPAPI):
         exclude_titles: list[str] = None,
         time_range: TimeRange = None,
         save_file: Literal["md", "html"] = "md",
-        min_file_size_kb: int = 3,
+        min_file_size: str = "3KB",
     ):
         """
         保存所有文章内容到Markdown文件（并发下载）
@@ -317,7 +314,7 @@ class TimeRangeSpider(WxMPAPI):
             exclude_titles: 排除的文章标题列表包含字段，默认 None
             time_range: 时间范围
             save_file: 保存格式（md 或 html）
-            min_file_size_kb: 最小文件大小（KB）
+            min_file_size: 最小文件大小（支持单位：B, KB, MB, GB）
         """
         save_dir.mkdir(parents=True, exist_ok=True)
         # 筛选出在时间范围内的文章
@@ -350,7 +347,7 @@ class TimeRangeSpider(WxMPAPI):
                 date_str=row.get("create_time", ""),
                 account_name=row.get("nickname", ""),
                 digest=row.get("digest", ""),
-                min_file_size_kb=min_file_size_kb,
+                min_file_size=min_file_size,
             )
             tasks.append((task, row["link"], row["title"]))
 

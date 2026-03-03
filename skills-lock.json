@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "pythonic-style": {
+      "source": "morning-start/coze-skills",
+      "sourceType": "github",
+      "computedHash": "337f3676db02a9607adb19a5cea06eda5e208ae90dea033e94e9e448bc67fd03"
+    }
+  }
+}

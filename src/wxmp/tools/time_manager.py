@@ -1,37 +1,38 @@
+from __future__ import annotations
+
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Generic, Literal, NamedTuple, TypeVar
+from typing import Literal, NamedTuple
 
 import pandas as pd
 from loguru import logger
 from pydantic import BaseModel, field_serializer
 from tqdm import tqdm
 
-from wxmp.tools.file import save_json
+from wxmp.tools.file import load_json, save_json
 
 
 class TimeRange(BaseModel):
     """文章时间范围，用于缓存管理"""
 
     begin: datetime
-    end: datetime = datetime.today()
+    end: datetime = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
 
     @field_serializer("begin", "end")
     def serialize_datetime(self, dt: datetime) -> str:
         """将 datetime 对象序列化为 YYYY-MM-DD 格式字符串"""
         return dt.strftime("%Y-%m-%d")
 
-    # 包含 begin 和 end 时间
-    def __contains__(self, dt: datetime) -> bool:
+    # 包含 begin 和 end 时间，支持 datetime 和 TimeRange 对象
+    def __contains__(self, dt: datetime | "TimeRange") -> bool:
+        if isinstance(dt, TimeRange):
+            return self.begin <= dt.begin and dt.end <= self.end
         return self.begin <= dt <= self.end
 
 
-T = TypeVar("T", bound=TimeRange)
-
-
-class TimeManager(Generic[T]):
-    def __init__(self, meta: T, df: pd.DataFrame):
+class TimeManager:
+    def __init__(self, meta: TimeRange, df: pd.DataFrame):
         self.meta = meta
         self.data = df
 
@@ -44,26 +45,24 @@ class TimeManager(Generic[T]):
             raise FileNotFoundError(f"文件不存在: {json_path} 或 {csv_path}")
 
     @classmethod
-    def new(cls, meta_class: type[T] = TimeRange) -> "TimeManager[T]":
+    def new(cls) -> "TimeManager":
         """创建新的 TimeManager 实例"""
         # 时间创建为 最开始的时间，min_value
-        meta = meta_class(begin=datetime.min, end=datetime.min)
+        meta = TimeRange(begin=datetime.min, end=datetime.min)
         df = pd.DataFrame(columns=["title", "create_time"])
         return cls(meta, df)
 
     @classmethod
-    def load_file(
-        cls, file_name: str, file_dir: Path, meta_class: type[T] = TimeRange
-    ) -> "TimeManager[T]":
+    def load_file(cls, file_name: str, file_dir: Path) -> "TimeManager":
         """加载文件"""
         json_path = file_dir / f"{file_name}.json"
         csv_path = file_dir / f"{file_name}.csv"
         cls.check_file_exist(file_name, file_dir)
-        meta = meta_class(**load_json(json_path))
+        meta = TimeRange(**load_json(json_path))
         df = pd.read_csv(csv_path)
         return cls(meta, df)
 
-    def match_remaining_time_range(self, need_time: T) -> T | None:
+    def match_remaining_time_range(self, need_time: TimeRange) -> TimeRange | None:
         """
         获取剩余的时间范围
 
@@ -79,19 +78,19 @@ class TimeManager(Generic[T]):
             self.meta.end = need_time.end
             return need_time
         elif self.meta.begin < need_time.begin < self.meta.end < need_time.end:
-            remaining_range = type(need_time)(begin=self.meta.end, end=need_time.end)
+            remaining_range = TimeRange(begin=self.meta.end, end=need_time.end)
             self.meta.end = need_time.end
             return remaining_range
         elif need_time.begin < self.meta.begin < need_time.end < self.meta.end:
-            remaining_range = type(need_time)(
-                begin=need_time.begin, end=self.meta.begin
-            )
+            remaining_range = TimeRange(begin=need_time.begin, end=self.meta.begin)
             self.meta.begin = need_time.begin
             return remaining_range
         else:
             return None
 
-    def fliter_data(self, time_range: T, time_col: str = "create_time") -> pd.DataFrame:
+    def fliter_data(
+        self, time_range: TimeRange, time_col: str = "create_time"
+    ) -> pd.DataFrame:
         """
         过滤数据
 
@@ -129,12 +128,12 @@ class TimeManager(Generic[T]):
         df = df.sort_values(by=time_col, ascending=False, ignore_index=True)
         self.data = pd.concat([self.data, df], ignore_index=True)
 
-    def in_time_range(self, t: datetime) -> bool:
+    def include_time_range(self, t: TimeRange) -> bool:
         """
-        判断时间是否在范围中
+        判断时间范围是否在元数据时间范围中
 
         Args:
-            time: 时间
+            t: 时间范围
 
         Returns:
             是否在范围中

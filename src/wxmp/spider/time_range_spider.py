@@ -6,6 +6,7 @@ from typing import Literal, NamedTuple
 import pandas as pd
 from loguru import logger
 from tqdm import tqdm
+
 from wxmp.api import ArticleListItem, SearchBizError, TokenError, WxMPAPI
 from wxmp.tools import load_json, sanitize_filename, save_json
 from wxmp.tools.article_downloader import ArticleDownloader, ArticleMetadata
@@ -156,8 +157,8 @@ class TimeRangeSpider(WxMPAPI):
             if not articles:
                 logger.info(f"公众号「{nickname}」获取到的文章为空，停止获取")
                 break
-            # 如果时间范围限制存在，超过start_date，停止获取
-            if time_range and articles[-1].create_time < time_range.begin.timestamp():
+            # 如果时间范围限制存在，超过start_date，停止向前获取
+            if time_range and articles[-1].update_time < time_range.begin.timestamp():
                 break
             # 如果最大数量限制存在，超过最大数量，停止获取
             if max_count and len(all_articles) >= max_count:
@@ -237,17 +238,15 @@ class TimeRangeSpider(WxMPAPI):
             tm.save_file(safe_nickname, save_dir)
 
         # 合并bizs中对应的csv文件，并且 nickname 列为对应公众号名称
-        csv_files: list[Path] = []
+        csv_files: list[pd.DataFrame] = []
         for nickname in bizs.keys():
             safe_nickname = sanitize_filename(nickname)
-            csv_path = save_dir / f"{safe_nickname}.csv"
-            if csv_path.exists():
-                csv_files.append(csv_path)
+            tm = TimeManager.load_file(safe_nickname, save_dir)
+            df = tm.fliter_data(time_range)
+            df["nickname"] = nickname
+            csv_files.append(df)
         if csv_files:
-            df = pd.concat(
-                [pd.read_csv(f).assign(nickname=f.stem) for f in csv_files],
-                ignore_index=True,
-            )
+            df = pd.concat(csv_files, ignore_index=True)
         else:
             df = pd.DataFrame()
         return df

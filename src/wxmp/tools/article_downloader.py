@@ -22,9 +22,6 @@ class ArticleMetadata:
         """
         生成 YAML front matter 格式的元数据
 
-        Args:
-            metadata: 文章元数据
-
         Returns:
             YAML front matter 字符串
         """
